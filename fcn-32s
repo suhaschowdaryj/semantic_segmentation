@@ -64,37 +64,33 @@ FCN32.add(Conv2DTranspose(n_classes,kernel_size = (64, 64),strides = (32,32), na
 FCN32.add(Cropping2D(cropping = 16))
 FCN32.add(Activation('softmax'))
 
-# FCN32.summary()
-
 FCN32.compile(loss="categorical_crossentropy", optimizer='adam', metrics=['accuracy'])
 
 #transfer learning - VGGnet to FCN32
 
-data = loadmat('C://Users/jchin/Tensorflow-Segmentation-master/pascal-fcn32s-dag.mat', matlab_compatible=False, struct_as_record=False)
-l = data['layers']
-p = data['params']
-description = data['meta'][0,0].classes[0,0].description
-def copy_mat_to_keras(kmodel):
-    kerasnames = [lr.name for lr in kmodel.layers]
-    for i in range(0, p.shape[1]-1, 2):
-        matname = '_'.join(p[0,i].name[0].split('_')[0:-1])
-        if matname in kerasnames:
-            kindex = kerasnames.index(matname)
-            l_weights = p[0,i].value
-            l_bias = p[0,i+1].value
-            kmodel.layers[kindex].set_weights([l_weights, l_bias[:,0]])
+transfer_weights = loadmat('C://Users/jchin/Tensorflow-Segmentation-master/pascal-fcn32s-dag.mat', matlab_compatible=False, struct_as_record=False)
+params = transfer_weights['params']
+
+def transfer_learning(input_model):
+    layer_names = [l.name for l in input_model.layers]
+    for i in range(0, params.shape[1]-1, 2):
+        t_name = '_'.join(params[0,i].name[0].split('_')[0:-1])
+        if t_name in layer_names:
+            kindex = layer_names.index(t_name)
+            t_weights = params[0,i].value
+            t_bias = params[0,i+1].value
+            input_model.layers[kindex].set_weights([t_weights, t_bias[:,0]])
         else:
-            print ('not found: ', str(matname)
-)
+            print ('not found: ', str(t_name))
             
-copy_mat_to_keras(FCN32)
+transfer_learning(FCN32)
 
+# Image directory
+image_directory = 'C://Users/jchin/Desktop/image_segmen/VOC2012/JPEGImages/'
+segm_image_directory = 'C://Users/jchin/Desktop/image_segmen/VOC2012/SegmentationClass/'
+train_set_list = 'C://Users/jchin/Desktop/image_segmen/VOC2012/ImageSets/Segmentation/train.txt'
+validation_set_list = 'C://Users/jchin/Desktop/image_segmen/VOC2012/ImageSets/Segmentation/trainval.txt'
 
-# Directory needed
-val_image_dir = 'C://Users/jchin/Desktop/image_segmen/VOC2012/JPEGImages/'
-val_target_dir = 'C://Users/jchin/Desktop/image_segmen/VOC2012/SegmentationClass/'
-trainText = 'C://Users/jchin/Desktop/image_segmen/VOC2012/ImageSets/Segmentation/train.txt'
-validText = 'C://Users/jchin/Desktop/image_segmen/VOC2012/ImageSets/Segmentation/trainval.txt'
 
 
 # Getting training names in the train.txt
@@ -183,46 +179,4 @@ X = generate_arrays_from_file(filenames, val_image_dir, val_target_dir, width, c
 X_get = next(X)
 print('Input Shape:', X_get[0].shape)
 print('Validation Shape:', X_get[1].shape)
-
-
-
-def prepareim(im):
-    im[:,:,0] -= 103.939
-    im[:,:,1] -= 116.779
-    im[:,:,2] -= 123.68
-    im = np.expand_dims(im, axis=0)
-    return im
-    
-    
-subset = filenames[0: len(filenames)]
-S = np.random.choice(len(filenames))
-S = 25
-
-# Imput Image
-inputImg = cv2.imread(images[S])
-
-inputImg1 = Image.open('C://Users/jchin/Desktop/image_segmen/VOC2012/JPEGImages/2007_002088.jpg')
-image = inputImg1.resize((224,224))
-
-inputImg = np.frombuffer(image.tobytes(), dtype=np.uint8).reshape((224,224,3))
-inputImgP = inputImg.astype('float64')
-inputImgP = prepareim(inputImgP)
-preds = FCN32.predict(inputImgP)
-
-imclass = np.argmax(preds, axis=3)[0,:,:]
-print(imclass.shape)
-plt.figure(figsize = (15, 7))
-plt.subplot(1,3,1)
-plt.imshow( np.asarray(inputImg) )
-plt.subplot(1,3,2)
-plt.imshow( imclass )
-plt.subplot(1,3,3)
-plt.imshow( np.asarray(inputImg) )
-masked_imclass = np.ma.masked_where(imclass == 0, imclass)
-plt.imshow( imclass, alpha=0.5 )
-plt.imshow( masked_imclass, alpha=0.5 )
-
-plt.show()
-
-
 
